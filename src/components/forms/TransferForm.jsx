@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { transfer } from '../../api/wallet';
+import { useGroupedNumberInput } from '../../hooks/useGroupedNumberInput';
 
 export default function TransferForm({ currentBalance, onSuccess, onCancel }) {
   const [toUsername, setToUsername] = useState('');
-  const [amount, setAmount] = useState('');
+  const { value: amount, inputProps: amountProps } = useGroupedNumberInput('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -69,12 +70,8 @@ export default function TransferForm({ currentBalance, onSuccess, onCancel }) {
         <input
           id="transfer-amount"
           className="input"
-          type="number"
-          step="0.01"
-          min="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
           placeholder="0.00"
+          {...amountProps}
         />
         {currentBalance != null && (
           <p className="text-xs text-slate-500 mt-1.5">

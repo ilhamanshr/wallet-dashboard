@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { topup } from '../../api/wallet';
+import { useGroupedNumberInput } from '../../hooks/useGroupedNumberInput';
 
 const MAX_TOPUP = 10_000_000;
 
 export default function TopupForm({ onSuccess, onCancel }) {
-  const [amount, setAmount] = useState('');
+  const { value: amount, inputProps } = useGroupedNumberInput('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -47,13 +48,9 @@ export default function TopupForm({ onSuccess, onCancel }) {
         <input
           id="topup-amount"
           className="input"
-          type="number"
-          step="0.01"
-          min="0.01"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
           placeholder="0.00"
           autoFocus
+          {...inputProps}
         />
         <p className="text-xs text-slate-500 mt-1.5">
           Positive values only, must be less than {MAX_TOPUP.toLocaleString()}.
