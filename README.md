@@ -3,6 +3,8 @@
 A web-based admin dashboard for the Insignia crypto-wallet backend. Built with
 React + Vite + Tailwind CSS, with Chart.js for the charts and Axios for HTTP.
 
+**Live demo:** https://wallet-dashboard-production.up.railway.app
+
 ## Features
 
 - **Authentication** – Username + password login. Backend uses JWT tokens
@@ -11,6 +13,9 @@ React + Vite + Tailwind CSS, with Chart.js for the charts and Axios for HTTP.
 - **Dashboard** – Live balance, transaction KPIs, and two Chart.js bar charts:
   - "My top transactions" (vertical bars, green = credit, red = debit)
   - "Top transacting users" (horizontal bars by aggregate debit value)
+- **Top up & Transfer** – Modal forms with client-side validation
+  (positive amounts, balance check, friendly 400/404 error mapping). Amount
+  inputs format with thousand separators while the user types.
 - **Transactions** – Paginated table of the user's top transactions with:
   - Search by counterparty username
   - Filter chips (All / Credits / Debits)
@@ -23,6 +28,9 @@ React + Vite + Tailwind CSS, with Chart.js for the charts and Axios for HTTP.
 - Tailwind CSS 3
 - Axios (with auth header interceptor and 401 redirect)
 - Chart.js 4 + react-chartjs-2
+- Express + http-proxy-middleware as the production server (`server.js`) —
+  serves the built SPA and proxies `/api/*` to the backend so the browser
+  stays single-origin.
 
 ## Backend
 
@@ -107,36 +115,58 @@ CORS configuration is needed on the backend.
      Railway project, use the private network for free traffic and lower
      latency:
      ```
-     BACKEND_URL=http://${{wallet-api.RAILWAY_PRIVATE_DOMAIN}}:${{wallet-api.PORT}}
+     BACKEND_URL=http://${{wallet-backend.RAILWAY_PRIVATE_DOMAIN}}:${{wallet-backend.PORT}}
      ```
-     (replace `wallet-api` with the actual backend service name). Otherwise
-     point at the public domain (`https://wallet-api.up.railway.app`).
+     (replace `wallet-backend` with the actual backend service name). Otherwise
+     point at the public domain (`https://wallet-backend.up.railway.app`).
 3. Railway's Nixpacks builder will run `npm install` → `npm run build` →
    `npm start` automatically (configured in `railway.json`). The server
    listens on `$PORT` provided by Railway.
 4. Generate a public domain on the frontend service and open it in a browser.
 
+### Backend bind address (gotcha)
+
+Railway's private network is **IPv6-only**. If the backend uses
+`app.listen(port, '0.0.0.0')`, internal proxy requests will hit the
+backend's IPv6 address and get `ECONNREFUSED` because nothing is listening
+on IPv6. Bind dual-stack instead:
+
+```ts
+await app.listen(port, '::');
+```
+
+Without this fix, you have to fall back to the **public** backend URL in
+`BACKEND_URL` (which routes through Railway's edge and handles dual-stack
+for you, but costs egress).
+
 ## Project structure
 
 ```
-src/
-├── api/
-│   ├── client.js          # Axios instance + interceptors
-│   └── wallet.js          # Endpoint wrappers
-├── components/
-│   ├── Layout.jsx         # Sidebar shell
-│   ├── ProtectedRoute.jsx # Auth guard
-│   ├── StatCard.jsx       # KPI tile
-│   └── charts/            # Chart.js bar charts
-├── context/
-│   └── AuthContext.jsx    # Token + username state
-├── lib/
-│   ├── credentials.js     # Local password hashing/storage
-│   └── format.js          # Currency / signed-amount formatters
-└── pages/
-    ├── Dashboard.jsx
-    ├── Login.jsx
-    └── Transactions.jsx
+.
+├── server.js               # Production server: static dist/ + /api proxy
+├── railway.json            # Railway build/deploy config (Nixpacks)
+└── src/
+    ├── api/
+    │   ├── client.js       # Axios instance + interceptors
+    │   └── wallet.js       # Endpoint wrappers
+    ├── components/
+    │   ├── Layout.jsx      # Sidebar shell
+    │   ├── Modal.jsx       # Reusable modal (Esc + backdrop close)
+    │   ├── ProtectedRoute.jsx
+    │   ├── StatCard.jsx    # KPI tile
+    │   ├── charts/         # Chart.js bar charts
+    │   └── forms/          # TopupForm, TransferForm
+    ├── context/
+    │   └── AuthContext.jsx # Token + username state
+    ├── hooks/
+    │   └── useGroupedNumberInput.js  # Live thousand-separator input
+    ├── lib/
+    │   ├── credentials.js  # Local password hashing/storage
+    │   └── format.js       # Currency / signed-amount formatters
+    └── pages/
+        ├── Dashboard.jsx
+        ├── Login.jsx
+        └── Transactions.jsx
 ```
 
 ## Notes on auth design
