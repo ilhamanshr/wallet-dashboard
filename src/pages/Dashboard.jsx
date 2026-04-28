@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Modal from '../components/Modal.jsx';
 import StatCard from '../components/StatCard.jsx';
 import TopTransactionsChart from '../components/charts/TopTransactionsChart.jsx';
 import TopUsersChart from '../components/charts/TopUsersChart.jsx';
+import TopupForm from '../components/forms/TopupForm.jsx';
+import TransferForm from '../components/forms/TransferForm.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getBalance, getTopTransactions, getTopUsers } from '../api/wallet.js';
 import { fmtCurrency, fmtSigned } from '../lib/format.js';
@@ -13,6 +16,9 @@ export default function Dashboard() {
   const [topUsers, setTopUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  const [openModal, setOpenModal] = useState(null); // 'topup' | 'transfer' | null
+  const [toast, setToast] = useState(null); // { kind: 'success' | 'error', message }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -37,6 +43,12 @@ export default function Dashboard() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(id);
+  }, [toast]);
+
   const stats = useMemo(() => {
     const credits = transactions.filter((t) => Number(t.amount) > 0);
     const debits = transactions.filter((t) => Number(t.amount) < 0);
@@ -53,6 +65,24 @@ export default function Dashboard() {
     };
   }, [transactions]);
 
+  const handleTopupSuccess = (amount) => {
+    setOpenModal(null);
+    setToast({
+      kind: 'success',
+      message: `Topped up ${fmtCurrency(amount)} successfully.`,
+    });
+    load();
+  };
+
+  const handleTransferSuccess = ({ recipient, amount }) => {
+    setOpenModal(null);
+    setToast({
+      kind: 'success',
+      message: `Sent ${fmtCurrency(amount)} to ${recipient}.`,
+    });
+    load();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-4 flex-wrap">
@@ -62,13 +92,29 @@ export default function Dashboard() {
             Live overview of your wallet activity.
           </p>
         </div>
-        <button onClick={load} className="btn-ghost" disabled={loading}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12a9 9 0 1 1-3-6.7" />
-            <path d="M21 4v5h-5" />
-          </svg>
-          {loading ? 'Refreshing…' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setOpenModal('topup')} className="btn-ghost">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+            Top up
+          </button>
+          <button onClick={() => setOpenModal('transfer')} className="btn-primary">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14" />
+              <path d="m13 6 6 6-6 6" />
+            </svg>
+            Transfer
+          </button>
+          <button onClick={load} className="btn-ghost" disabled={loading}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 1 1-3-6.7" />
+              <path d="M21 4v5h-5" />
+            </svg>
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -116,6 +162,41 @@ export default function Dashboard() {
           <TopUsersChart data={topUsers} />
         </ChartCard>
       </div>
+
+      <Modal
+        open={openModal === 'topup'}
+        onClose={() => setOpenModal(null)}
+        title="Top up balance"
+        subtitle="Add funds to your wallet."
+      >
+        <TopupForm onSuccess={handleTopupSuccess} onCancel={() => setOpenModal(null)} />
+      </Modal>
+
+      <Modal
+        open={openModal === 'transfer'}
+        onClose={() => setOpenModal(null)}
+        title="Send transfer"
+        subtitle="Move funds to another user."
+      >
+        <TransferForm
+          currentBalance={balance}
+          onSuccess={handleTransferSuccess}
+          onCancel={() => setOpenModal(null)}
+        />
+      </Modal>
+
+      {toast && (
+        <div
+          className={[
+            'fixed bottom-6 right-6 z-50 px-4 py-3 rounded-lg shadow-lg ring-1 text-sm',
+            toast.kind === 'success'
+              ? 'bg-emerald-500/15 text-emerald-200 ring-emerald-500/40'
+              : 'bg-red-500/15 text-red-200 ring-red-500/40',
+          ].join(' ')}
+        >
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }
