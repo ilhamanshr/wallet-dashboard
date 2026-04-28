@@ -8,8 +8,16 @@
 
 import express from 'express';
 import { createProxyMiddleware } from 'http-proxy-middleware';
+import dns from 'node:dns';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Railway's private network (*.railway.internal) is IPv6-only.
+// Node 18 defaults to 'ipv4first', which breaks resolution for IPv6-only
+// hostnames. 'verbatim' returns DNS records in the order the resolver
+// provides them — the AAAA record is returned first (and is the only
+// record) on Railway internal DNS. ('ipv6first' is Node 20+ only.)
+dns.setDefaultResultOrder('verbatim');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,12 +42,21 @@ app.use(
     target: backendUrl || 'http://localhost:3000',
     changeOrigin: true,
     pathRewrite: { '^/api': '' },
-    logLevel: 'warn',
-    onError(err, _req, res) {
-      console.error('[proxy] error', err.message);
-      if (!res.headersSent) {
-        res.status(502).json({ error: 'Bad gateway', message: err.message });
-      }
+    on: {
+      error(err, req, res) {
+        console.error(
+          `[proxy] ${req.method} ${req.url} -> ${backendUrl} failed:`,
+          err.code || '',
+          err.message,
+        );
+        if (res && !res.headersSent && typeof res.status === 'function') {
+          res.status(502).json({
+            error: 'Bad gateway',
+            code: err.code,
+            message: err.message,
+          });
+        }
+      },
     },
   }),
 );
