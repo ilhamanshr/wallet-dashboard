@@ -83,8 +83,38 @@ cp .env.example .env
 
 ```bash
 npm run build
-npm run preview
+npm start
 ```
+
+`npm start` boots the bundled Express server (`server.js`) which serves the
+built SPA from `dist/` and forwards `/api/*` to the backend identified by the
+`BACKEND_URL` env var. Run it locally with:
+
+```bash
+BACKEND_URL=http://localhost:3000 PORT=4321 npm start
+```
+
+## Deploying to Railway
+
+The frontend is designed to be deployed to Railway alongside the wallet
+backend. The bundled `server.js` proxies `/api/*` to whatever URL is in
+`BACKEND_URL`, so the browser only ever talks to the frontend service — no
+CORS configuration is needed on the backend.
+
+1. Create a new service in your Railway project from this repo.
+2. Set environment variables on the frontend service:
+   - `BACKEND_URL` – the backend's URL. If both services are in the same
+     Railway project, use the private network for free traffic and lower
+     latency:
+     ```
+     BACKEND_URL=http://${{wallet-api.RAILWAY_PRIVATE_DOMAIN}}:${{wallet-api.PORT}}
+     ```
+     (replace `wallet-api` with the actual backend service name). Otherwise
+     point at the public domain (`https://wallet-api.up.railway.app`).
+3. Railway's Nixpacks builder will run `npm install` → `npm run build` →
+   `npm start` automatically (configured in `railway.json`). The server
+   listens on `$PORT` provided by Railway.
+4. Generate a public domain on the frontend service and open it in a browser.
 
 ## Project structure
 
